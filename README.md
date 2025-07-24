@@ -1,4 +1,4 @@
-# Go PDF Unlock Service
+# PDF Unlocker with Go
 
 A simple HTTP service built in Go that removes password protection from PDF files using the pdfcpu library.
 
