@@ -1,56 +1,80 @@
 package main
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
-	"os"
-	"path/filepath"
-	"strings"
+	"net/http"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 )
 
 func main() {
-	inputDir := "input"
-	outDir := "output"
-
-	files, err := ioutil.ReadDir(inputDir)
-	if err != nil {
-		log.Fatalf("Failed to read input directory: %v", err)
-	}
-
-	reader := bufio.NewReader(os.Stdin)
-
-	for _, file := range files {
-		if !strings.HasSuffix(file.Name(), ".pdf") {
-			continue
-		}
-
-		inputPath := filepath.Join(inputDir, file.Name())
-		outPath := filepath.Join(outDir, strings.TrimSuffix(file.Name(), ".pdf")+"_unlocked.pdf")
-
-		fmt.Printf("Enter password for %s: ", file.Name())
-		password, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Printf("Failed to read password for %s: %v\n", file.Name(), err)
-			continue
-		}
-		password = strings.TrimSpace(password)
-
-		err = unlockPdf(inputPath, outPath, password)
-		if err != nil {
-			fmt.Printf("Failed to unlock %s: %v\n", file.Name(), err)
-		} else {
-			fmt.Printf("Successfully unlocked %s\n", file.Name())
-		}
+	http.HandleFunc("/unlock", unlockHandler)
+	log.Println("Server starting on port 8080...")
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		log.Fatalf("Server failed to start: %v", err)
 	}
 }
 
-func unlockPdf(inputPath, outputPath, password string) error {
-	conf := model.NewDefaultConfiguration()
-	conf.UserPW = password
-	return api.DecryptFile(inputPath, outputPath, conf)
+func unlockHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "Failed to read file from form", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Read the file content into a byte slice
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "Failed to read file content", http.StatusInternalServerError)
+		return
+	}
+
+	// Check if the file is a PDF
+	if http.DetectContentType(fileBytes) != "application/pdf" {
+		http.Error(w, "Uploaded file is not a PDF", http.StatusBadRequest)
+		return
+	}
+
+	password := r.FormValue("password")
+	if password == "" {
+		http.Error(w, "Password not provided", http.StatusBadRequest)
+		return
+	}
+
+	unlockedPdf, err := unlockPdf(fileBytes, password)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to unlock PDF: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"unlocked.pdf\"")
+	if _, err := w.Write(unlockedPdf); err != nil {
+		// Log the error, but the response is likely already sent.
+		log.Printf("Failed to write unlocked PDF to response: %v", err)
+	}
+}
+
+func unlockPdf(fileBytes []byte, password string) ([]byte, error) {
+	reader := bytes.NewReader(fileBytes)
+	writer := &bytes.Buffer{}
+	config := model.NewDefaultConfiguration()
+	config.UserPW = password
+
+	err := api.Decrypt(reader, writer, config)
+	if err != nil {
+		return nil, err
+	}
+
+	return writer.Bytes(), nil
 }
