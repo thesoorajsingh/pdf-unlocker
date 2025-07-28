@@ -80,5 +80,5 @@ func unlockPdf(fileBytes []byte, password string) ([]byte, error) {
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
+	w.Write([]byte("I'm healthy and sound!"))
 }
