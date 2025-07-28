@@ -15,7 +15,7 @@ func setupRoutes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/unlock", unlockHandler)
 	mux.HandleFunc("/health", healthHandler)
-	return mux
+	return corsMiddleware(mux)
 }
 
 func unlockHandler(w http.ResponseWriter, r *http.Request) {
@@ -81,4 +81,41 @@ func unlockPdf(fileBytes []byte, password string) ([]byte, error) {
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("I'm healthy and sound!"))
+}
+
+// CORS middleware allowing *.thesoorajsingh.me and localhost
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if isAllowedOrigin(origin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func isAllowedOrigin(origin string) bool {
+	// Allow localhost
+	if origin == "http://localhost" || origin == "http://localhost:8080" || origin == "http://localhost:3000" {
+		return true
+	}
+	// Allow *.thesoorajsingh.me
+	// Simple suffix match for subdomains
+	if len(origin) > 0 && (origin == "https://thesoorajsingh.me" || hasThesoorajsinghMeSuffix(origin)) {
+		return true
+	}
+	return false
+}
+
+func hasThesoorajsinghMeSuffix(origin string) bool {
+	return (len(origin) > 0 &&
+		(origin[len(origin)-20:] == ".thesoorajsingh.me" ||
+			origin[len(origin)-21:] == ".thesoorajsingh.me/"))
 }
