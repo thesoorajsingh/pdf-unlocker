@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
@@ -106,16 +107,10 @@ func isAllowedOrigin(origin string) bool {
 	if origin == "http://localhost" || origin == "http://localhost:8080" || origin == "http://localhost:3000" {
 		return true
 	}
-	// Allow *.thesoorajsingh.me
-	// Simple suffix match for subdomains
-	if len(origin) > 0 && (origin == "https://thesoorajsingh.me" || hasThesoorajsinghMeSuffix(origin)) {
+
+	if strings.Contains(origin, "thesoorajsingh.me") {
 		return true
 	}
 	return false
 }
 
-func hasThesoorajsinghMeSuffix(origin string) bool {
-	return (len(origin) > 0 &&
-		(origin[len(origin)-20:] == ".thesoorajsingh.me" ||
-			origin[len(origin)-21:] == ".thesoorajsingh.me/"))
-}
