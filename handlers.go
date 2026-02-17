@@ -108,7 +108,7 @@ func isAllowedOrigin(origin string) bool {
 		return true
 	}
 
-	if strings.Contains(origin, "thesoorajsingh.me") {
+	if strings.Contains(origin, "soorajsingh.space") {
 		return true
 	}
 	return false
